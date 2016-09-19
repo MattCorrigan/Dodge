@@ -74,7 +74,7 @@ Vector.prototype = {
 
 
 
-
+var c;
 var player;
 var enemies = [];
 var enemiesOffScreen = [];
@@ -133,7 +133,7 @@ function createEnemy() {
 }
 
 function setup() {
-    createCanvas(700, 500);
+    c = createCanvas(700, 500);
     player = createSprite(width/2, height-25, 50, 50);
     player.yvelocity = 0;
     createEnemy();
@@ -141,6 +141,11 @@ function setup() {
 }
 
 function draw() {
+  
+    c.size(window.innerWidth, window.innerHeight);
+    var canvasElement = document.getElementsByTagName("canvas")[0];
+    canvasElement.width = window.innerWidth;
+    canvasElement.height = window.innerHeight;
     
     if (floor(random() * 50) == 1) {
         createEnemy()
