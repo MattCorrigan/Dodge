@@ -4,6 +4,9 @@ function Vector(x, y, z) {
   this.z = z || 0;
 }
 Vector.prototype = {
+  random2D: function() {
+    return new Vector(random(-1, 1), random(-1, 1), 1);
+  },
   negative: function() {
     return new Vector(-this.x, -this.y, -this.z);
   },
@@ -86,34 +89,34 @@ var startTime = 0;
 var score;
 
 var bullets = [];
+var bulletsOffScreen = [];
+var firing = false;
+var fireCount = 0;
+
+var powerUp = false;
+var powerUpCount = 0;
+var powerUpBlock;
+
+var particleSystems = [];
 
 MOVE_SPEED = 6;
 GRAVITY = 1;
 HIGHSCORE = 0;
 
 function gameOver() {
+    textSize(16);
     fill("white");
-    text("Game Over!", (width / 2)-75, height / 2);
+    text("Game Over!", (width / 2)-55, height / 2);
     text("Click anywhere to try again", (width / 2)-100, 3 * height / 4);
 }
 
-function mouseClicked() {
-    if (isGameOver) {
-        isGameOver = false;
-        player.position.x = width/2;
-        player.position.y = height-25;
-        for (var i = 0; i < enemies.length; i++) {
-            enemies[i].remove();
-        }
-        enemies = [];
-        
-        date = new Date();
-        var time = date.getTime();
-        startTime = time;
-        score = 0;
-    } else {
-        fireBullet();
-    }
+function mousePressed() {
+  firing = true;
+}
+
+function mouseReleased() {
+  firing = false;
+  fireCount = 30;
 }
 
 function fireBullet() {
@@ -121,13 +124,13 @@ function fireBullet() {
     var bullet = createSprite(player.position.x, player.position.y, 10, 10);
     bullets.push(bullet);
     var angle = new Vector(mouseX - player.position.x, mouseY - player.position.y);
-    angle = angle.unit().multiply(10);
+    angle = angle.unit().multiply(30);
     bullet.xvelocity = angle.x;
     bullet.yvelocity = angle.y;
 }
 
 function createEnemy() {
-    var enemy = createSprite(Math.random() * width, 0, 20, 30);
+    var enemy = createSprite(Math.random() * width, 0, 30, 30);
     enemy.fallspeed = random() * 5 + 5;
     enemies.push(enemy);
 }
@@ -138,24 +141,87 @@ function setup() {
     player.yvelocity = 0;
     createEnemy();
     startTime = date.getTime();
+    
+    powerUpBlock = createSprite(Math.random() * width, 0, 10, 10);
+    powerUpBlock.fallspeed = 1;
+}
+
+function reset() {
+  player.position.x = width / 2;
+  player.position.y = height - 25;
+  for (var i = 0; i < enemies.length; i++) {
+    enemies[i].remove();
+  }
+  enemies = [];
+  
+  for (var i = 0; i < bullets.length; i++) {
+    bullets[i].remove();
+  }
+  bullets = [];
+  startTime = date.getTime();
+  isGameOver = false;
+  
+  powerUpBlock.remove();
+  powerUpBlock = createSprite(Math.random() * width, 0, 10, 10);
+  powerUpBlock.fallspeed = 1;
+  
+  for (var i = 0; i < particleSystems.length; i++) {
+    particleSystems[i].remove();
+  }
+  particleSystems = [];
 }
 
 function draw() {
+    if (firing) {
+      fireCount++;
+      if (fireCount > 10 || (powerUp && fireCount > 5)) {
+      if (isGameOver) {
+        reset();
+      } else {
+          fireBullet();
+      }
+      fireCount = 0;
+      }
+    }
+    
+    powerUpBlock.position.y += powerUpBlock.fallspeed;
+    if (powerUpBlock > height + 2000) {
+      powerUpBlock.position.y = 0;
+      powerUpBlock.position.x = Math.random() * width;
+    }
   
-    c.size(window.innerWidth, window.innerHeight);
+    if (powerUpBlock.overlap(player)) {
+      powerUpBlock.position.y = height + 100;
+      powerUpCount = 0;
+      powerUp = true;
+    } else {
+      if (powerUp) {
+        powerUpCount++;
+        if (powerUpCount > 500) {
+          powerUpCount = 0;
+          powerUp = false;
+        }
+      }
+    }
+  
+    c.size(window.innerWidth, window.innerHeight-20);
     var canvasElement = document.getElementsByTagName("canvas")[0];
     canvasElement.width = window.innerWidth;
-    canvasElement.height = window.innerHeight;
+    canvasElement.height = window.innerHeight-20;
+    
+    canvasElement.getContext("2d").clearRect(0, 0, canvasElement.width, canvasElement.height);
     
     if (floor(random() * 50) == 1) {
-        createEnemy()
+        createEnemy();
     }
     
     if (isGameOver) {
+        gameOver();
         return;
+    } else {
+      background(0, 0, 0);
     }
     
-    background(0, 0, 0);
     
     if (keyDown(65)) {
         //a
@@ -190,7 +256,7 @@ function draw() {
     for (var i = 0; i < enemies.length; i++) {
         var e = enemies[i];
         e.position.y += e.fallspeed;
-        if (e.position.y > height+50) {
+        if (e.position.y > height+150) {
             enemiesOffScreen.push(e);
             createEnemy();
         }
@@ -198,6 +264,8 @@ function draw() {
             if (bullets[j].overlap(e)) {
                 enemiesOffScreen.push(e);
                 createEnemy();
+                bulletsOffScreen.push(bullets[j]);
+                particleSystems.push(new ParticleSystem(e));
             }
         }
     }
@@ -210,8 +278,33 @@ function draw() {
     enemiesOffScreen = [];
     
     for (var i = 0; i < bullets.length; i++) {
-        bullets[i].position.x += bullets[i].xvelocity;
-        bullets[i].position.y += bullets[i].yvelocity;
+        var b = bullets[i];
+        b.position.x += bullets[i].xvelocity;
+        b.position.y += bullets[i].yvelocity;
+        if (b.position.x < -100 || b.position.x > width + 100 || b.position.y < -100 || b.position.y > height + 100) {
+          bulletsOffScreen.push(b);
+        }
+      }
+    
+    for (var i = 0; i < bulletsOffScreen.length; i++) {
+        var e = bulletsOffScreen[i];
+        bullets.splice(bullets.indexOf(e), 1);
+        e.remove();
+    }
+    bulletsOffScreen = [];
+    
+    done = [];
+    for (var i = 0; i < particleSystems.length; i++) {
+      particleSystem = particleSystems[i];
+      particleSystem.update();
+      if (particleSystem.done) {
+        particleSystem.remove();
+        done.push(i);
+      }
+    }
+    
+    for (var i = 0; i < done.length; i++) {
+      particleSystems.splice(done[i], 1);
     }
     
     drawSprites();
@@ -226,6 +319,8 @@ function draw() {
             }
         }
     }
+    fill("white");
+    textSize(16);
     date = new Date();
     var time = date.getTime() - startTime;
     score = time / 1000;
@@ -235,4 +330,40 @@ function draw() {
     }
     text("Highscore: " + HIGHSCORE, width - 200, 20);
     
+}
+
+var ParticleSystem = function(parent) {
+  
+  this.done = false;
+  
+  this.particles = [];
+  for (var i = 0; i < 20; i++) {
+    sprite = createSprite(parent.position.x, parent.position.y, 5, 5);
+    sprite.shapeColor = parent.shapeColor;
+    sprite.vel = (new Vector()).random2D().multiply(3);
+    sprite.alpha = 255;
+    this.particles.push(sprite);
+  }
+  
+  this.update = function() {
+    for (var i = 0; i < this.particles.length; i++) {
+      particle = this.particles[i];
+      particle.vel.y += 0.1;
+      particle.position.x += particle.vel.x;
+      particle.position.y += particle.vel.y;
+      particle.alpha-=10;
+      if (particle.alpha <= 0) {
+        this.done = true;
+      } else {
+        particle.shapeColor = color("rgba(255, 0, 0, " + (particle.alpha/255) + ")");
+      }
+    }
+  }
+  
+  this.remove = function() {
+    for (var i = 0; i < this.particles.length; i++) {
+      this.particles[i].remove();
+    }
+  }
+  
 }
